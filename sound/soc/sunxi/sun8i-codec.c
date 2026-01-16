@@ -1596,6 +1596,7 @@ static bool sun8i_codec_volatile_reg(struct device *dev, unsigned int reg)
 }
 
 static const struct regmap_config sun8i_codec_regmap_config = {
+	.name = "sun8i_codec",
 	.reg_bits	= 32,
 	.reg_stride	= 4,
 	.val_bits	= 32,
