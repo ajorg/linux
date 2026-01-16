@@ -1226,6 +1226,7 @@ static const struct snd_soc_component_driver sun8i_soc_component = {
 };
 
 static const struct regmap_config sun8i_codec_regmap_config = {
+	.name = "sun8i_codec",
 	.reg_bits	= 32,
 	.reg_stride	= 4,
 	.val_bits	= 32,
