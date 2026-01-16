@@ -257,6 +257,9 @@ static int sun8i_codec_update_sample_rate(struct sun8i_codec *scodec)
 	regmap_update_bits(scodec->regmap, SUN8I_SYS_SR_CTRL,
 			   SUN8I_SYS_SR_CTRL_AIF1_FS_MASK,
 			   hw_rate << SUN8I_SYS_SR_CTRL_AIF1_FS);
+	regmap_update_bits(scodec->regmap, SUN8I_SYS_SR_CTRL,
+			   SUN8I_SYS_SR_CTRL_AIF2_FS_MASK,
+			   hw_rate << SUN8I_SYS_SR_CTRL_AIF2_FS);
 
 	return 0;
 }
@@ -288,6 +291,9 @@ static int sun8i_codec_set_fmt(struct snd_soc_dai *dai, unsigned int fmt)
 				   SUN8I_AIF3_CLK_CTRL_AIF3_CLK_SRC_MASK,
 				   SUN8I_AIF3_CLK_CTRL_AIF3_CLK_SRC_AIF2);
 	} else {
+		regmap_update_bits(scodec->regmap, SUN8I_AIF_CLK_CTRL(SUN8I_CODEC_AIF1),
+				   BIT(SUN8I_AIF_CLK_CTRL_MSTR_MOD),
+				   value << SUN8I_AIF_CLK_CTRL_MSTR_MOD);
 		regmap_update_bits(scodec->regmap, SUN8I_AIF_CLK_CTRL(dai->id),
 				   BIT(SUN8I_AIF_CLK_CTRL_MSTR_MOD),
 				   value << SUN8I_AIF_CLK_CTRL_MSTR_MOD);
@@ -321,6 +327,9 @@ static int sun8i_codec_set_fmt(struct snd_soc_dai *dai, unsigned int fmt)
 		if (format != 3)
 			return -EINVAL;
 	} else {
+		regmap_update_bits(scodec->regmap, SUN8I_AIF_CLK_CTRL(SUN8I_CODEC_AIF1),
+				   SUN8I_AIF_CLK_CTRL_DATA_FMT_MASK,
+				   format << SUN8I_AIF_CLK_CTRL_DATA_FMT);
 		regmap_update_bits(scodec->regmap, SUN8I_AIF_CLK_CTRL(dai->id),
 				   SUN8I_AIF_CLK_CTRL_DATA_FMT_MASK,
 				   format << SUN8I_AIF_CLK_CTRL_DATA_FMT);
@@ -365,6 +374,9 @@ static int sun8i_codec_set_fmt(struct snd_soc_dai *dai, unsigned int fmt)
 		invert ^= scodec->quirks->lrck_inversion;
 	}
 
+	regmap_update_bits(scodec->regmap, SUN8I_AIF_CLK_CTRL(SUN8I_CODEC_AIF1),
+			   SUN8I_AIF_CLK_CTRL_CLK_INV_MASK,
+			   invert << SUN8I_AIF_CLK_CTRL_CLK_INV);
 	regmap_update_bits(scodec->regmap, SUN8I_AIF_CLK_CTRL(dai->id),
 			   SUN8I_AIF_CLK_CTRL_CLK_INV_MASK,
 			   invert << SUN8I_AIF_CLK_CTRL_CLK_INV);
@@ -519,6 +531,9 @@ static int sun8i_codec_hw_params(struct snd_pcm_substream *substream,
 		return -EINVAL;
 	}
 
+	regmap_update_bits(scodec->regmap, SUN8I_AIF_CLK_CTRL(SUN8I_CODEC_AIF1),
+			   SUN8I_AIF_CLK_CTRL_WORD_SIZ_MASK,
+			   word_size << SUN8I_AIF_CLK_CTRL_WORD_SIZ);
 	regmap_update_bits(scodec->regmap, SUN8I_AIF_CLK_CTRL(dai->id),
 			   SUN8I_AIF_CLK_CTRL_WORD_SIZ_MASK,
 			   word_size << SUN8I_AIF_CLK_CTRL_WORD_SIZ);
@@ -548,6 +563,9 @@ static int sun8i_codec_hw_params(struct snd_pcm_substream *substream,
 		clk_reg = SUN8I_AIF_CLK_CTRL(dai->id);
 	}
 
+	regmap_update_bits(scodec->regmap, SUN8I_AIF_CLK_CTRL(SUN8I_CODEC_AIF1),
+			   SUN8I_AIF_CLK_CTRL_LRCK_DIV_MASK,
+			   (lrck_div_order - 4) << SUN8I_AIF_CLK_CTRL_LRCK_DIV);
 	regmap_update_bits(scodec->regmap, clk_reg,
 			   SUN8I_AIF_CLK_CTRL_LRCK_DIV_MASK,
 			   (lrck_div_order - 4) << SUN8I_AIF_CLK_CTRL_LRCK_DIV);
@@ -557,6 +575,9 @@ static int sun8i_codec_hw_params(struct snd_pcm_substream *substream,
 	if (bclk_div < 0)
 		return bclk_div;
 
+	regmap_update_bits(scodec->regmap, SUN8I_AIF_CLK_CTRL(SUN8I_CODEC_AIF1),
+			   SUN8I_AIF_CLK_CTRL_BCLK_DIV_MASK,
+			   bclk_div << SUN8I_AIF_CLK_CTRL_BCLK_DIV);
 	regmap_update_bits(scodec->regmap, clk_reg,
 			   SUN8I_AIF_CLK_CTRL_BCLK_DIV_MASK,
 			   bclk_div << SUN8I_AIF_CLK_CTRL_BCLK_DIV);
@@ -1226,6 +1247,7 @@ static const struct snd_soc_component_driver sun8i_soc_component = {
 };
 
 static const struct regmap_config sun8i_codec_regmap_config = {
+	.name = "sun8i_codec",
 	.reg_bits	= 32,
 	.reg_stride	= 4,
 	.val_bits	= 32,
