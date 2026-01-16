@@ -392,6 +392,16 @@ config LEDS_GPIO
 	  defined as platform devices and/or OpenFirmware platform devices.
 	  The code to use these bindings can be selected below.
 
+config LEDS_GPIO_PROC
+	bool "procfs brightness interface for GPIO LEDs"
+	depends on LEDS_GPIO && PROC_FS
+	help
+	  Adds /proc/driver/<name> entries for each GPIO LED, exposing
+	  brightness read/write via procfs. The LED class sysfs interface
+	  at /sys/class/leds/<name>/brightness provides the same
+	  functionality and is preferred; enable this only for compatibility
+	  with userspace that expects the proc interface (e.g. GameShell).
+
 config LEDS_LP3944
 	tristate "LED Support for N.S. LP3944 (Fun Light) I2C chip"
 	depends on LEDS_CLASS
