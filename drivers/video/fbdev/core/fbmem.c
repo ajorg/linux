@@ -524,6 +524,9 @@ static int fb_show_logo_line(struct fb_info *info, int rotate,
 
 	image.width = logo->width;
 	image.height = logo->height;
+	image.dx = (info->var.xres/2) - (logo->width/2);
+	image.dy = (info->var.yres/2) - (logo->height/2);
+	n = 1;
 
 	if (rotate) {
 		logo_rotate = kmalloc_array(logo->width, logo->height,
