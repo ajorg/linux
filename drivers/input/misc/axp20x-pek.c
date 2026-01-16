@@ -212,13 +212,25 @@ static irqreturn_t axp20x_pek_irq(int irq, void *pwr)
 		return IRQ_HANDLED;
 
 	/*
-	 * The power-button is connected to ground so a falling edge (dbf)
-	 * means it is pressed.
+	 * irq_dbf is mapped to AXP22X_IRQ_PEK_SHORT (short press).
+	 * irq_dbr is mapped to AXP22X_IRQ_PEK_LONG  (long press).
+	 *
+	 * The SHORT press IRQ fires after the button is physically released.
+	 * Simulate a 100ms synthetic hold so that polling-based input consumers
+	 * (e.g. game engines sampling key state per frame at 60Hz) reliably
+	 * detect the event. This is safe because AXP20X sub-IRQs are dispatched
+	 * via handle_nested_irq and run in a kernel thread, not hardirq context.
+	 *
+	 * LONG press is handled by the PMU hardware (forced power-off); no input
+	 * event is reported.
 	 */
-	if (irq == axp20x_pek->irq_dbf)
+	if (irq == axp20x_pek->irq_dbf) {
 		input_report_key(idev, KEY_POWER, true);
-	else if (irq == axp20x_pek->irq_dbr)
+		msleep(100);
 		input_report_key(idev, KEY_POWER, false);
+	} else if (irq == axp20x_pek->irq_dbr) {
+		/* Long press: PMU hardware handles forced power-off. */
+	}
 
 	input_sync(idev);
 
