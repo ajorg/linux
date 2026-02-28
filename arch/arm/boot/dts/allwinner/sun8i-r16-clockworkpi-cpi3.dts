@@ -59,7 +59,7 @@
 
 	chosen {
 		stdout-path = "serial0:115200n8";
-		bootargs = "vt.global_cursor_default=0 fbcon=logo-pos:center fbcon=logo-count:1";
+		bootargs = "console=ttyS0,115200n8 vt.global_cursor_default=0 fbcon=logo-pos:center fbcon=logo-count:1";
 	};
 
 	leds {
