@@ -30,6 +30,10 @@ config LOGO_LINUX_CLUT224
 	bool "Standard 224-color Linux logo"
 	default y
 
+config LOGO_GAMESHELL_CLUT224
+	bool "224-color ClockworkPi GameShell logo"
+	depends on ARCH_SUNXI
+
 config LOGO_DEC_CLUT224
 	bool "224-color Digital Equipment Corporation Linux logo"
 	depends on MACH_DECSTATION || ALPHA
