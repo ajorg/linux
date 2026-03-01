@@ -121,6 +121,7 @@
 
 	panel {
 		compatible = "clockwork,cpi3-lcd";
+		power-supply = <&reg_dc1sw>;
 
 		ports {
 			#address-cells = <1>;
@@ -203,6 +204,12 @@
 };
 
 &pio {
+	vcc-pb-supply = <&reg_aldo1>;
+	vcc-pc-supply = <&reg_aldo1>;
+	vcc-pf-supply = <&reg_aldo1>;
+	vcc-pg-supply = <&reg_aldo1>;
+	vcc-ph-supply = <&reg_aldo1>;
+
 	mmc0_cd_pin: mmc0_cd_pin@0 {
 		pins = "PB3";
 		function = "gpio_in";
@@ -226,6 +233,8 @@
 };
 
 &r_pio {
+	vcc-pl-supply = <&reg_rtc_ldo>;
+
 	usb1_vbus_pin: usb1_vbus_pin@0 {
 		pins = "PL2";
 		function = "gpio_out";
@@ -362,6 +371,12 @@
 	regulator-min-microvolt = <3300000>;
 	regulator-max-microvolt = <3300000>;
 	regulator-name = "vcc-wifi2";
+};
+
+&reg_dc1sw {
+	regulator-min-microvolt = <3000000>;
+	regulator-max-microvolt = <3000000>;
+	regulator-name = "vcc-lcd";
 };
 
 &reg_drivevbus {
