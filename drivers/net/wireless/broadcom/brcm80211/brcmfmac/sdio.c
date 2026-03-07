@@ -4465,7 +4465,7 @@ static const struct proc_ops brcmf_sdio_proc_fops = {
 
 static void brcmf_sdio_proc_init(struct brcmf_sdio *bus)
 {
-	bus->proc_entry = proc_create_data("driver/brcmf_fw", 0666, NULL,
+	bus->proc_entry = proc_create_data("driver/brcmf_fw", 0440, NULL,
 					   &brcmf_sdio_proc_fops, bus);
 }
 #else
