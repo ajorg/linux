@@ -167,6 +167,16 @@
 };
 
 &pio {
+	/*
+	 * PA, PD, and PE banks have no connected pins on the GameShell PCB;
+	 * vcc-pa/pd/pe-supply are intentionally omitted.
+	 */
+	vcc-pb-supply = <&reg_aldo1>;
+	vcc-pc-supply = <&reg_aldo1>;
+	vcc-pf-supply = <&reg_aldo1>;
+	vcc-pg-supply = <&reg_aldo1>;
+	vcc-ph-supply = <&reg_aldo1>;
+
 	mmc0_cd_pin: mmc0-cd-pin {
 		pins = "PB3";
 		function = "gpio_in";
@@ -180,6 +190,8 @@
 };
 
 &r_pio {
+	vcc-pl-supply = <&reg_rtc_ldo>;
+
 	usb1_vbus_pin: usb1-vbus-pin {
 		pins = "PL2";
 		function = "gpio_out";

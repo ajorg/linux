@@ -86,12 +86,6 @@
 };
 
 &pio {
-	vcc-pb-supply = <&reg_aldo1>;
-	vcc-pc-supply = <&reg_aldo1>;
-	vcc-pf-supply = <&reg_aldo1>;
-	vcc-pg-supply = <&reg_aldo1>;
-	vcc-ph-supply = <&reg_aldo1>;
-
 	lcd_control_pin: lcd-control-pin {
 		pins = "PB2", "PC0", "PC2", "PC3";
 		function = "gpio_out";
@@ -104,8 +98,6 @@
 };
 
 &r_pio {
-	vcc-pl-supply = <&reg_rtc_ldo>;
-
 	speaker_amplifier_pin: speaker-amplifier-pin {
 		pins = "PL3";
 		function = "gpio_out";
