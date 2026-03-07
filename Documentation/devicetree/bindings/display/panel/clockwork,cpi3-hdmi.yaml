@@ -8,9 +8,10 @@ title: Clockwork ClockworkPi CPI3 HDMI output module panel node
 
 description: |
   Placeholder panel node used when the ClockworkPi CPI3 HDMI expansion
-  module is fitted.  The module pulls GPIO PL11 low on boot, causing
-  U-Boot to select this DTB.  The RGB output of the SoC is routed to
-  the HDMI module instead of the built-in LCD.
+  module is fitted.  The RGB output of the SoC is routed to the HDMI
+  module instead of the built-in LCD.  This DTB is selected at boot time
+  instead of the default LCD variant DTB (e.g. via the fdtfile boot
+  environment variable).
 
 maintainers:
   - Clockwork Tech LLC <linux@clockworkpi.com>
