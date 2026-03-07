@@ -125,11 +125,24 @@
 #define ADDA_PR_DATA_OUT_SHIFT		0
 #define ADDA_PR_DATA_OUT_MASK		GENMASK(7, 0)
 
+/*
+ * Serializes read-modify-write access to the ADDA_PR indirect register bus.
+ * Both the regmap path and hmic_wrreg_prcm_bits() go through adda_reg_read()
+ * / adda_reg_write(), which perform multi-step RMW sequences on a single
+ * hardware serializer register.  A concurrent access from process context
+ * (DAPM / probe) and hard-IRQ context would corrupt register state without
+ * this lock.
+ */
+static DEFINE_SPINLOCK(adda_pr_lock);
+
 /* regmap access bits */
 static int adda_reg_read(void *context, unsigned int reg, unsigned int *val)
 {
 	void __iomem *base = (void __iomem *)context;
+	unsigned long flags;
 	u32 tmp;
+
+	spin_lock_irqsave(&adda_pr_lock, flags);
 
 	/* De-assert reset */
 	writel(readl(base) | ADDA_PR_RESET, base);
@@ -146,13 +159,18 @@ static int adda_reg_read(void *context, unsigned int reg, unsigned int *val)
 	/* Read back value */
 	*val = readl(base) & ADDA_PR_DATA_OUT_MASK;
 
+	spin_unlock_irqrestore(&adda_pr_lock, flags);
+
 	return 0;
 }
 
 static int adda_reg_write(void *context, unsigned int reg, unsigned int val)
 {
 	void __iomem *base = (void __iomem *)context;
+	unsigned long flags;
 	u32 tmp;
+
+	spin_lock_irqsave(&adda_pr_lock, flags);
 
 	/* De-assert reset */
 	writel(readl(base) | ADDA_PR_RESET, base);
@@ -174,6 +192,8 @@ static int adda_reg_write(void *context, unsigned int reg, unsigned int val)
 
 	/* Clear write bit */
 	writel(readl(base) & ~ADDA_PR_WRITE, base);
+
+	spin_unlock_irqrestore(&adda_pr_lock, flags);
 
 	return 0;
 }
@@ -1058,7 +1078,7 @@ static int sun8i_codec_analog_probe(struct platform_device *pdev)
 		 * devm_request_irq().
 		 */
 		ret = devm_request_irq(&pdev->dev, irq, sunxi_codec_analog_irq,
-				       0, "audio_hmic_irq", priv);
+				       IRQF_ONESHOT, "audio_hmic_irq", priv);
 		if (ret) {
 			dev_err(&pdev->dev,
 				"can't register interrupt handler irq %d: %d\n",
