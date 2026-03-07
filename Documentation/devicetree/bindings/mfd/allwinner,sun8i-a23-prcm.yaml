@@ -136,6 +136,19 @@ patternProperties:
 
             phandle: true
 
+            interrupts:
+              maxItems: 1
+              description: HMIC (headphone mic) interrupt.
+
+            interrupt-parent: true
+
+            speaker-amplifier-gpios:
+              maxItems: 1
+              description: GPIO controlling the speaker amplifier enable line.
+
+            pinctrl-names: true
+            pinctrl-0: true
+
           required:
             - compatible
 
