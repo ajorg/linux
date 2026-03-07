@@ -38,10 +38,16 @@ struct ocp8178_backlight {
 
 static void entry_1wire_mode(struct ocp8178_backlight *gbl)
 {
-	unsigned long flags = 0;
-	local_irq_save(flags);
+	unsigned long flags;
+
+	/* The >=3ms shutdown pulse has no µs-precision requirement; holding
+	 * IRQs off across a mdelay() call is not acceptable in process context.
+	 * Only the subsequent detection window (sub-millisecond pulses) needs
+	 * IRQs disabled to guarantee timing.
+	 */
 	gpiod_set_value(gbl->gpiod, 0);
-	mdelay(SHUTDOWN_TIME/1000);
+	mdelay(SHUTDOWN_TIME / 1000);
+	local_irq_save(flags);
 	gpiod_set_value(gbl->gpiod, 1);
 	udelay(DETECT_DELAY);
 	gpiod_set_value(gbl->gpiod, 0);
@@ -68,7 +74,7 @@ static inline void write_bit(struct ocp8178_backlight *gbl, int bit)
 
 static void write_byte(struct ocp8178_backlight *gbl, int byte)
 {
-	unsigned long flags = 0;
+	unsigned long flags;
 	unsigned char data = 0x72;
 	int i;
 
