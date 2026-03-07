@@ -41,63 +41,9 @@
  */
 
 /dts-v1/;
-#include "sun8i-a33.dtsi"
-#include "sunxi-common-regulators.dtsi"
-
-#include <dt-bindings/gpio/gpio.h>
-#include <dt-bindings/input/input.h>
+#include "sun8i-r16-clockworkpi-cpi3.dtsi"
 
 / {
-	model = "Clockwork CPI3";
-	compatible = "clockwork,clockworkpi-cpi3", "allwinner,sun8i-a33";
-
-	aliases {
-		serial0 = &uart0;
-		mmc0 = &mmc0;
-		mmc1 = &mmc1;
-	};
-
-	chosen {
-		stdout-path = "serial0:115200n8";
-		bootargs = "console=ttyS0,115200n8 vt.global_cursor_default=0";
-	};
-
-	psci {
-		compatible = "arm,psci-0.2";
-		method = "smc";
-	};
-
-	cpus {
-		enable-method = "psci";
-	};
-
-	leds {
-		compatible = "gpio-leds";
-		pinctrl-names = "default";
-		pinctrl-0 = <&led_pins>;
-
-		led1 {
-			label = "led1";
-			gpios = <&pio 1 7 GPIO_ACTIVE_LOW>; /* PB7 */
-		};
-	};
-
-	wifi_pwrseq: wifi_pwrseq {
-		compatible = "mmc-pwrseq-simple";
-		reset-gpios = <&r_pio 0 6 GPIO_ACTIVE_LOW>; /* PL6 */
-		post-power-on-delay-ms = <200>;
-	};
-
-	rfkill_gpio: rfkill_gpio {
-		compatible = "rfkill-gpio";
-		label = "ap6212-bluetooth";
-		radio-type = "bluetooth";
-		pinctrl-names = "default";
-		pinctrl-0 = <&bt_control_pin>;
-		reset-gpio = <&r_pio 0 8 GPIO_ACTIVE_HIGH>; /* PL8 */
-		shutdown-gpio = <&r_pio 0 10 GPIO_ACTIVE_LOW>; /* PL10 */
-	};
-
 	backlight {
 		compatible = "ocp8178-backlight";
 		pinctrl-names = "default";
@@ -140,18 +86,6 @@
 	};
 };
 
-&codec {
-	status = "okay";
-};
-
-&dai {
-	status = "okay";
-};
-
-&sound {
-	status = "okay";
-};
-
 &codec_analog {
 	interrupt-parent = <&gic>;
 	pinctrl-names = "default";
@@ -160,66 +94,12 @@
 	interrupts = <GIC_SPI 46 IRQ_TYPE_LEVEL_HIGH>;
 };
 
-&de {
-	status = "okay";
-};
-
-&tcon0 {
-	status = "okay";
-};
-
-&tcon0_out {
-	tcon0_out_rgb: endpoint@0 {
-		reg = <0>;
-		remote-endpoint = <&rgb_input>;
-	};
-};
-
-&ehci0 {
-	status = "okay";
-};
-
-&mmc0 {
-	pinctrl-names = "default";
-	pinctrl-0 = <&mmc0_pins>, <&mmc0_cd_pin>;
-	vmmc-supply = <&reg_dcdc1>;
-	cd-gpios = <&pio 1 3 GPIO_ACTIVE_LOW>; /* PB3 */
-	bus-width = <4>;
-	status = "okay";
-};
-
-&mmc1 {
-	pinctrl-names = "default";
-	pinctrl-0 = <&mmc1_pg_pins>, <&wifi_reset_pin>;
-	vmmc-supply = <&reg_aldo1>;
-	mmc-pwrseq = <&wifi_pwrseq>;
-	bus-width = <4>;
-	non-removable;
-	keep-power-in-suspend;
-	status = "okay";
-};
-
-&ohci0 {
-	status = "okay";
-};
-
 &pio {
 	vcc-pb-supply = <&reg_aldo1>;
 	vcc-pc-supply = <&reg_aldo1>;
 	vcc-pf-supply = <&reg_aldo1>;
 	vcc-pg-supply = <&reg_aldo1>;
 	vcc-ph-supply = <&reg_aldo1>;
-
-	mmc0_cd_pin: mmc0_cd_pin@0 {
-		pins = "PB3";
-		function = "gpio_in";
-		bias-pull-up;
-	};
-
-	led_pins: led_pins@0 {
-		pins = "PB7";
-		function = "gpio_out";
-	};
 
 	lcd_control_pin: lcd_control_pin@0 {
 		pins = "PB2", "PC0", "PC2", "PC3";
@@ -235,193 +115,14 @@
 &r_pio {
 	vcc-pl-supply = <&reg_rtc_ldo>;
 
-	usb1_vbus_pin: usb1_vbus_pin@0 {
-		pins = "PL2";
-		function = "gpio_out";
-	};
-
 	speaker_amplifier_pin: speaker_amplifier_pin@0 {
 		pins = "PL3";
 		function = "gpio_out";
 	};
-
-	usb0_id_det: usb0_id_detect_pin@0 {
-		pins = "PL4";
-		function = "gpio_in";
-		bias-pull-up;
-	};
-
-	wifi_reset_pin: wifi_reset_pin@0 {
-		pins = "PL6";
-		function = "gpio_out";
-	};
-
-	bt_control_pin: bt_control_pin@0 {
-		pins = "PL8", "PL10";
-		function = "gpio_out";
-	};
-};
-
-&r_rsb {
-	status = "okay";
-
-	axp22x: pmic@3a3 {
-		compatible = "x-powers,axp223";
-		reg = <0x3a3>;
-		interrupt-parent = <&r_intc>;
-		interrupts = <GIC_SPI 32 IRQ_TYPE_LEVEL_LOW>;
-		drivevbus-supply = <&reg_vcc5v0>;
-		x-powers,drive-vbus-en;
-	};
-};
-
-#include "axp223.dtsi"
-
-&reg_aldo1 {
-	regulator-always-on;
-	regulator-min-microvolt = <3000000>;
-	regulator-max-microvolt = <3000000>;
-	regulator-name = "vcc-io";
-};
-
-&reg_aldo2 {
-	regulator-always-on;
-	regulator-min-microvolt = <2500000>;
-	regulator-max-microvolt = <2500000>;
-	regulator-name = "vdd-dll";
-};
-
-&reg_aldo3 {
-	regulator-always-on;
-	regulator-min-microvolt = <3000000>;
-	regulator-max-microvolt = <3000000>;
-	regulator-name = "vcc-pll-avcc";
-};
-
-&reg_dc5ldo {
-	regulator-always-on;
-	regulator-min-microvolt = <1100000>;
-	regulator-max-microvolt = <1100000>;
-	regulator-name = "vdd-cpus";
-};
-
-&reg_dcdc1 {
-	regulator-always-on;
-	regulator-min-microvolt = <3000000>;
-	regulator-max-microvolt = <3000000>;
-	regulator-name = "vcc-3v0";
-};
-
-&reg_dcdc2 {
-	regulator-always-on;
-	regulator-min-microvolt = <1100000>;
-	regulator-max-microvolt = <1100000>;
-	regulator-name = "vdd-sys";
-};
-
-&reg_dcdc3 {
-	regulator-always-on;
-	regulator-min-microvolt = <1200000>;
-	regulator-max-microvolt = <1200000>;
-	regulator-name = "vdd-cpu";
-};
-
-&reg_dcdc5 {
-	regulator-always-on;
-	regulator-min-microvolt = <1500000>;
-	regulator-max-microvolt = <1500000>;
-	regulator-name = "vcc-dram";
-};
-
-&reg_dldo1 {
-	/*
-	 * TODO: WiFi chip needs dldo1 AND dldo2 to be on to be powered.
-	 * Remove next line once it is possible to sync two regulators.
-	 */
-	regulator-always-on;
-	regulator-min-microvolt = <3300000>;
-	regulator-max-microvolt = <3300000>;
-	regulator-name = "vcc-wifi0";
-};
-
-&reg_dldo2 {
-	/*
-	 * TODO: WiFi chip needs dldo1 AND dldo2 to be on to be powered.
-	 * Remove next line once it is possible to sync two regulators.
-	 */
-	regulator-always-on;
-	regulator-min-microvolt = <3300000>;
-	regulator-max-microvolt = <3300000>;
-	regulator-name = "vcc-wifi1";
-};
-
-&reg_dldo3 {
-	regulator-always-on;
-	regulator-min-microvolt = <3300000>;
-	regulator-max-microvolt = <3300000>;
-	regulator-name = "vcc-amp";
-};
-
-&reg_dldo4 {
-	/*
-	 * TODO: WiFi chip needs dldo1 AND dldo2 AND dldo4 to be on to be powered.
-	 * Remove next line once it is possible to sync two regulators.
-	 */
-	regulator-always-on;
-	regulator-min-microvolt = <3300000>;
-	regulator-max-microvolt = <3300000>;
-	regulator-name = "vcc-wifi2";
 };
 
 &reg_dc1sw {
 	regulator-min-microvolt = <3000000>;
 	regulator-max-microvolt = <3000000>;
 	regulator-name = "vcc-lcd";
-};
-
-&reg_drivevbus {
-	regulator-name = "usb0-vbus";
-	status = "okay";
-};
-
-&reg_usb1_vbus {
-	pinctrl-names = "default";
-	pinctrl-0 = <&usb1_vbus_pin>;
-	gpio = <&r_pio 0 2 GPIO_ACTIVE_HIGH>; /* PL2 */
-	status = "okay";
-};
-
-&battery_power_supply {
-	status = "okay";
-};
-
-&uart0 {
-	pinctrl-names = "default";
-	pinctrl-0 = <&uart0_pb_pins>;
-	status = "okay";
-};
-
-&uart1 {
-	pinctrl-names = "default";
-	pinctrl-0 = <&uart1_pg_pins>, <&uart1_cts_rts_pg_pins>;
-	status = "okay";
-};
-
-&usb_otg {
-	dr_mode = "otg";
-	status = "okay";
-};
-
-&usb_power_supply {
-	status = "okay";
-};
-
-&usbphy {
-	status = "okay";
-	pinctrl-names = "default";
-	pinctrl-0 = <&usb0_id_det>;
-	usb0_vbus-supply = <&reg_drivevbus>;
-	usb0_id_det-gpios = <&r_pio 0 4 GPIO_ACTIVE_HIGH>; /* PL4 */
-	usb0_vbus_power-supply = <&usb_power_supply>;
-	usb1_vbus-supply = <&reg_usb1_vbus>;
 };
