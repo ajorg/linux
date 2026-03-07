@@ -114,90 +114,6 @@
 #define SUN8I_ADDA_ADC_AP_EN_ADCLEN		6
 #define SUN8I_ADDA_ADC_AP_EN_ADCG		0
 
-/* Analog control register access bits */
-#define ADDA_PR			0x0		/* PRCM base + 0x1c0 */
-#define ADDA_PR_RESET			BIT(28)
-#define ADDA_PR_WRITE			BIT(24)
-#define ADDA_PR_ADDR_SHIFT		16
-#define ADDA_PR_ADDR_MASK		GENMASK(4, 0)
-#define ADDA_PR_DATA_IN_SHIFT		8
-#define ADDA_PR_DATA_IN_MASK		GENMASK(7, 0)
-#define ADDA_PR_DATA_OUT_SHIFT		0
-#define ADDA_PR_DATA_OUT_MASK		GENMASK(7, 0)
-
-/*
- * Serializes read-modify-write access to the ADDA_PR indirect register bus.
- * Both the regmap path and hmic_wrreg_prcm_bits() go through adda_reg_read()
- * / adda_reg_write(), which perform multi-step RMW sequences on a single
- * hardware serializer register.  A concurrent access from process context
- * (DAPM / probe) and hard-IRQ context would corrupt register state without
- * this lock.
- */
-static DEFINE_SPINLOCK(adda_pr_lock);
-
-/* regmap access bits */
-static int adda_reg_read(void *context, unsigned int reg, unsigned int *val)
-{
-	void __iomem *base = (void __iomem *)context;
-	unsigned long flags;
-	u32 tmp;
-
-	spin_lock_irqsave(&adda_pr_lock, flags);
-
-	/* De-assert reset */
-	writel(readl(base) | ADDA_PR_RESET, base);
-
-	/* Clear write bit */
-	writel(readl(base) & ~ADDA_PR_WRITE, base);
-
-	/* Set register address */
-	tmp = readl(base);
-	tmp &= ~(ADDA_PR_ADDR_MASK << ADDA_PR_ADDR_SHIFT);
-	tmp |= (reg & ADDA_PR_ADDR_MASK) << ADDA_PR_ADDR_SHIFT;
-	writel(tmp, base);
-
-	/* Read back value */
-	*val = readl(base) & ADDA_PR_DATA_OUT_MASK;
-
-	spin_unlock_irqrestore(&adda_pr_lock, flags);
-
-	return 0;
-}
-
-static int adda_reg_write(void *context, unsigned int reg, unsigned int val)
-{
-	void __iomem *base = (void __iomem *)context;
-	unsigned long flags;
-	u32 tmp;
-
-	spin_lock_irqsave(&adda_pr_lock, flags);
-
-	/* De-assert reset */
-	writel(readl(base) | ADDA_PR_RESET, base);
-
-	/* Set register address */
-	tmp = readl(base);
-	tmp &= ~(ADDA_PR_ADDR_MASK << ADDA_PR_ADDR_SHIFT);
-	tmp |= (reg & ADDA_PR_ADDR_MASK) << ADDA_PR_ADDR_SHIFT;
-	writel(tmp, base);
-
-	/* Set data to write */
-	tmp = readl(base);
-	tmp &= ~(ADDA_PR_DATA_IN_MASK << ADDA_PR_DATA_IN_SHIFT);
-	tmp |= (val & ADDA_PR_DATA_IN_MASK) << ADDA_PR_DATA_IN_SHIFT;
-	writel(tmp, base);
-
-	/* Set write bit to signal a write */
-	writel(readl(base) | ADDA_PR_WRITE, base);
-
-	/* Clear write bit */
-	writel(readl(base) & ~ADDA_PR_WRITE, base);
-
-	spin_unlock_irqrestore(&adda_pr_lock, flags);
-
-	return 0;
-}
-
 /* mixer controls */
 static const struct snd_kcontrol_new sun8i_codec_mixer_controls[] = {
 	SOC_DAPM_DOUBLE_R("DAC Playback Switch",
@@ -953,29 +869,9 @@ MODULE_DEVICE_TABLE(of, sun8i_codec_analog_of_match);
 
 struct sun8i_codec_analog_priv {
 	void __iomem *base;
+	struct regmap *adda_pr_regmap;
 	struct gpio_desc *speaker_amplifier_gpio;
 };
-
-static int hmic_wrreg_prcm_bits(void __iomem *base, unsigned short reg,
-				 unsigned int mask, unsigned int value)
-{
-	unsigned int old, new;
-
-	adda_reg_read(base, reg, &old);
-	new = (old & ~mask) | value;
-	adda_reg_write(base, reg, new);
-
-	return 0;
-}
-
-static int hmic_wr_prcm_control(void __iomem *base, u32 reg, u32 mask,
-				 u32 shift, u32 val)
-{
-	u32 reg_val = val << shift;
-	mask = mask << shift;
-	hmic_wrreg_prcm_bits(base, reg, mask, reg_val);
-	return 0;
-}
 
 static int hmic_wrreg_bits(void __iomem *base, unsigned short reg,
 			   unsigned int mask, unsigned int value)
@@ -1018,37 +914,46 @@ static irqreturn_t sunxi_codec_analog_irq(int irq, void *dev_id)
 	return IRQ_HANDLED;
 }
 
-static void sunxi_hppa_enable(void __iomem *base)
+static void sunxi_hppa_enable(struct regmap *adda_pr_regmap)
 {
 	/* fix the resume blaze blaze noise */
-	hmic_wr_prcm_control(base, ADDA_APT2, 0x1, PA_SLOPE_SELECT, 0x0);
-	hmic_wr_prcm_control(base, SUN8I_ADDA_PAEN_HP_CTRL, 0x3, SUN8I_ADDA_PAEN_HP_CTRL_PA_ANTI_POP_CTRL, 0x1);
-	hmic_wr_prcm_control(base, PA_ANTI_POP_REG_CTRL, 0x7, PA_ANTI_POP_EN, 0x2);
+	regmap_update_bits(adda_pr_regmap, ADDA_APT2,
+			   BIT(PA_SLOPE_SELECT), 0);
+	regmap_update_bits(adda_pr_regmap, SUN8I_ADDA_PAEN_HP_CTRL,
+			   0x3 << SUN8I_ADDA_PAEN_HP_CTRL_PA_ANTI_POP_CTRL,
+			   0x1 << SUN8I_ADDA_PAEN_HP_CTRL_PA_ANTI_POP_CTRL);
+	regmap_update_bits(adda_pr_regmap, PA_ANTI_POP_REG_CTRL,
+			   0x7 << PA_ANTI_POP_EN, 0x2 << PA_ANTI_POP_EN);
 	usleep_range(100, 200);
 	/* enable pa */
-	hmic_wr_prcm_control(base, SUN8I_ADDA_PAEN_HP_CTRL, 0x1, SUN8I_ADDA_PAEN_HP_CTRL_HPPAEN, 0x1);
+	regmap_update_bits(adda_pr_regmap, SUN8I_ADDA_PAEN_HP_CTRL,
+			   BIT(SUN8I_ADDA_PAEN_HP_CTRL_HPPAEN),
+			   BIT(SUN8I_ADDA_PAEN_HP_CTRL_HPPAEN));
 }
 
-static void sunxi_hbias_enable(void __iomem *base)
+static void sunxi_hbias_enable(struct regmap *adda_pr_regmap)
 {
 	/* audio codec hardware bug: the HBIASADCEN bit must be enabled in init */
-	hmic_wr_prcm_control(base, SUN8I_ADDA_MIC1G_MICBIAS_CTRL, 0x1, SUN8I_ADDA_MIC1G_MICBIAS_CTRL_HMICBIAS_MODE, 0x1);
-	hmic_wr_prcm_control(base, SUN8I_ADDA_MIC1G_MICBIAS_CTRL, 0x1, SUN8I_ADDA_MIC1G_MICBIAS_CTRL_HMICBIASEN, 0x1);
+	regmap_update_bits(adda_pr_regmap, SUN8I_ADDA_MIC1G_MICBIAS_CTRL,
+			   BIT(SUN8I_ADDA_MIC1G_MICBIAS_CTRL_HMICBIAS_MODE),
+			   BIT(SUN8I_ADDA_MIC1G_MICBIAS_CTRL_HMICBIAS_MODE));
+	regmap_update_bits(adda_pr_regmap, SUN8I_ADDA_MIC1G_MICBIAS_CTRL,
+			   BIT(SUN8I_ADDA_MIC1G_MICBIAS_CTRL_HMICBIASEN),
+			   BIT(SUN8I_ADDA_MIC1G_MICBIAS_CTRL_HMICBIASEN));
 }
 
-static void codec_init_events(void __iomem *base)
+static void codec_init_events(struct regmap *adda_pr_regmap)
 {
 	/* fix the resume blaze blaze noise */
-	sunxi_hppa_enable(base);
+	sunxi_hppa_enable(adda_pr_regmap);
 	msleep(450);
 	/* audio codec hardware bug: the HBIASADCEN bit must be enabled in init */
-	sunxi_hbias_enable(base);
+	sunxi_hbias_enable(adda_pr_regmap);
 }
 
 static int sun8i_codec_analog_probe(struct platform_device *pdev)
 {
 	struct sun8i_codec_analog_priv *priv;
-	struct regmap *regmap;
 	void __iomem *base;
 	int irq, ret;
 
@@ -1063,6 +968,13 @@ static int sun8i_codec_analog_probe(struct platform_device *pdev)
 		return -ENOMEM;
 
 	priv->base = base;
+
+	priv->adda_pr_regmap = sun8i_adda_pr_regmap_init(&pdev->dev, base);
+	if (IS_ERR(priv->adda_pr_regmap)) {
+		dev_err(&pdev->dev, "Failed to create regmap\n");
+		return PTR_ERR(priv->adda_pr_regmap);
+	}
+
 	priv->speaker_amplifier_gpio = devm_gpiod_get_optional(&pdev->dev,
 							       "speaker-amplifier",
 							       GPIOD_OUT_HIGH);
@@ -1098,13 +1010,7 @@ static int sun8i_codec_analog_probe(struct platform_device *pdev)
 		hmic_wr_control(base, SUNXI_HMIC_CTL, 0x1f, HMIC_TH2_KEY, 0x0);
 		hmic_wr_control(base, SUNXI_HMIC_CTL, 0x1f, HMIC_TH1_EARPHONE, 0x1);
 
-		codec_init_events(base);
-	}
-
-	regmap = sun8i_adda_pr_regmap_init(&pdev->dev, base);
-	if (IS_ERR(regmap)) {
-		dev_err(&pdev->dev, "Failed to create regmap\n");
-		return PTR_ERR(regmap);
+		codec_init_events(priv->adda_pr_regmap);
 	}
 
 	return devm_snd_soc_register_component(&pdev->dev,
