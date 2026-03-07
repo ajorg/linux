@@ -931,96 +931,103 @@ MODULE_DEVICE_TABLE(of, sun8i_codec_analog_of_match);
 #define PA_SLOPE_SELECT	  (3)
 #define PA_ANTI_POP_EN		(0)
 
-static void __iomem *sun8i_codec_analog_base;
-static struct gpio_desc * speaker_amplifier_gpio;
+struct sun8i_codec_analog_priv {
+	void __iomem *base;
+	struct gpio_desc *speaker_amplifier_gpio;
+};
 
-static int hmic_wrreg_prcm_bits(unsigned short reg, unsigned int mask, unsigned int value)
+static int hmic_wrreg_prcm_bits(void __iomem *base, unsigned short reg,
+				 unsigned int mask, unsigned int value)
 {
 	unsigned int old, new;
 
-	adda_reg_read(sun8i_codec_analog_base, reg, &old);
-	new	=	(old & ~mask) | value;
-	adda_reg_write(sun8i_codec_analog_base, reg,new);
+	adda_reg_read(base, reg, &old);
+	new = (old & ~mask) | value;
+	adda_reg_write(base, reg, new);
 
 	return 0;
 }
 
-static int hmic_wr_prcm_control(u32 reg, u32 mask, u32 shift, u32 val)
+static int hmic_wr_prcm_control(void __iomem *base, u32 reg, u32 mask,
+				 u32 shift, u32 val)
 {
-	u32 reg_val;
-	reg_val = val << shift;
+	u32 reg_val = val << shift;
 	mask = mask << shift;
-	hmic_wrreg_prcm_bits(reg, mask, reg_val);
+	hmic_wrreg_prcm_bits(base, reg, mask, reg_val);
 	return 0;
 }
 
-static int hmic_wrreg_bits(unsigned short reg, unsigned int	mask,	unsigned int value)
+static int hmic_wrreg_bits(void __iomem *base, unsigned short reg,
+			   unsigned int mask, unsigned int value)
 {
 	unsigned int old, new;
 
-	old	=	readl(sun8i_codec_analog_base + reg);
-	new	=	(old & ~mask) | value;
-
-	writel(new, sun8i_codec_analog_base + reg);
+	old = readl(base + reg);
+	new = (old & ~mask) | value;
+	writel(new, base + reg);
 
 	return 0;
 }
 
-static int hmic_wr_control(u32 reg, u32 mask, u32 shift, u32 val)
+static int hmic_wr_control(void __iomem *base, u32 reg, u32 mask,
+			   u32 shift, u32 val)
 {
-	u32 reg_val;
-	reg_val = val << shift;
+	u32 reg_val = val << shift;
 	mask = mask << shift;
-	hmic_wrreg_bits(reg, mask, reg_val);
+	hmic_wrreg_bits(base, reg, mask, reg_val);
 	return 0;
 }
 
 static irqreturn_t sunxi_codec_analog_irq(int irq, void *dev_id)
 {
+	struct sun8i_codec_analog_priv *priv = dev_id;
 	u32 tmp;
 
-	hmic_wr_control(SUNXI_HMIC_DATA, 0x1, HMIC_KEY_DOWN_IRQ_PEND, 0x1);
-	hmic_wr_control(SUNXI_HMIC_DATA, 0x1, HMIC_EARPHONE_IN_IRQ_PEND, 0x1);
-	hmic_wr_control(SUNXI_HMIC_DATA, 0x1, HMIC_KEY_UP_IRQ_PEND, 0x1);
-	hmic_wr_control(SUNXI_HMIC_DATA, 0x1, HMIC_EARPHONE_OUT_IRQ_PEND, 0x1);
-	hmic_wr_control(SUNXI_HMIC_DATA, 0x1, HMIC_DATA_IRQ_PEND, 0x1);
+	hmic_wr_control(priv->base, SUNXI_HMIC_DATA, 0x1, HMIC_KEY_DOWN_IRQ_PEND, 0x1);
+	hmic_wr_control(priv->base, SUNXI_HMIC_DATA, 0x1, HMIC_EARPHONE_IN_IRQ_PEND, 0x1);
+	hmic_wr_control(priv->base, SUNXI_HMIC_DATA, 0x1, HMIC_KEY_UP_IRQ_PEND, 0x1);
+	hmic_wr_control(priv->base, SUNXI_HMIC_DATA, 0x1, HMIC_EARPHONE_OUT_IRQ_PEND, 0x1);
+	hmic_wr_control(priv->base, SUNXI_HMIC_DATA, 0x1, HMIC_DATA_IRQ_PEND, 0x1);
 
-	tmp = readl(sun8i_codec_analog_base + SUNXI_HMIC_DATA);
-	if(tmp & 0x1f)
-		gpiod_set_value(speaker_amplifier_gpio, 0);
+	tmp = readl(priv->base + SUNXI_HMIC_DATA);
+	if (tmp & 0x1f)
+		gpiod_set_value(priv->speaker_amplifier_gpio, 0);
 	else
-		gpiod_set_value(speaker_amplifier_gpio, 1);
+		gpiod_set_value(priv->speaker_amplifier_gpio, 1);
 
 	return IRQ_HANDLED;
 }
 
-static void sunxi_hppa_enable(void) {
-    /*fix the resume blaze blaze noise*/
-	hmic_wr_prcm_control(ADDA_APT2, 0x1, PA_SLOPE_SELECT, 0x0);
-	hmic_wr_prcm_control(SUN8I_ADDA_PAEN_HP_CTRL, 0x3, SUN8I_ADDA_PAEN_HP_CTRL_PA_ANTI_POP_CTRL, 0x1);
-	hmic_wr_prcm_control(PA_ANTI_POP_REG_CTRL, 0x7, PA_ANTI_POP_EN, 0x2);
-	usleep_range(100,200);
-	/*enable pa*/
-	hmic_wr_prcm_control(SUN8I_ADDA_PAEN_HP_CTRL, 0x1, SUN8I_ADDA_PAEN_HP_CTRL_HPPAEN, 0x1);
-}
-
-static void sunxi_hbias_enable(void) {
-	/*audio codec hardware bug. the HBIASADCEN bit must be enable in init*/
-	hmic_wr_prcm_control(SUN8I_ADDA_MIC1G_MICBIAS_CTRL, 0x1, SUN8I_ADDA_MIC1G_MICBIAS_CTRL_HMICBIAS_MODE, 0x1);
-	hmic_wr_prcm_control(SUN8I_ADDA_MIC1G_MICBIAS_CTRL, 0x1, SUN8I_ADDA_MIC1G_MICBIAS_CTRL_HMICBIASEN, 0x1);
-}
-
-static void codec_init_events(void)
+static void sunxi_hppa_enable(void __iomem *base)
 {
-	/*fix the resume blaze blaze noise*/
-	sunxi_hppa_enable();
+	/* fix the resume blaze blaze noise */
+	hmic_wr_prcm_control(base, ADDA_APT2, 0x1, PA_SLOPE_SELECT, 0x0);
+	hmic_wr_prcm_control(base, SUN8I_ADDA_PAEN_HP_CTRL, 0x3, SUN8I_ADDA_PAEN_HP_CTRL_PA_ANTI_POP_CTRL, 0x1);
+	hmic_wr_prcm_control(base, PA_ANTI_POP_REG_CTRL, 0x7, PA_ANTI_POP_EN, 0x2);
+	usleep_range(100, 200);
+	/* enable pa */
+	hmic_wr_prcm_control(base, SUN8I_ADDA_PAEN_HP_CTRL, 0x1, SUN8I_ADDA_PAEN_HP_CTRL_HPPAEN, 0x1);
+}
+
+static void sunxi_hbias_enable(void __iomem *base)
+{
+	/* audio codec hardware bug: the HBIASADCEN bit must be enabled in init */
+	hmic_wr_prcm_control(base, SUN8I_ADDA_MIC1G_MICBIAS_CTRL, 0x1, SUN8I_ADDA_MIC1G_MICBIAS_CTRL_HMICBIAS_MODE, 0x1);
+	hmic_wr_prcm_control(base, SUN8I_ADDA_MIC1G_MICBIAS_CTRL, 0x1, SUN8I_ADDA_MIC1G_MICBIAS_CTRL_HMICBIASEN, 0x1);
+}
+
+static void codec_init_events(void __iomem *base)
+{
+	/* fix the resume blaze blaze noise */
+	sunxi_hppa_enable(base);
 	msleep(450);
-	/*audio codec hardware bug. the HBIASADCEN bit must be enable in init*/
-	sunxi_hbias_enable();
+	/* audio codec hardware bug: the HBIASADCEN bit must be enabled in init */
+	sunxi_hbias_enable(base);
 }
 
 static int sun8i_codec_analog_probe(struct platform_device *pdev)
 {
+	struct sun8i_codec_analog_priv *priv;
 	struct regmap *regmap;
 	void __iomem *base;
 	int irq, ret;
@@ -1031,36 +1038,47 @@ static int sun8i_codec_analog_probe(struct platform_device *pdev)
 		return PTR_ERR(base);
 	}
 
-	sun8i_codec_analog_base = base;
-	speaker_amplifier_gpio = devm_gpiod_get_optional(&pdev->dev, "speaker-amplifier", GPIOD_OUT_HIGH);
-	if (!IS_ERR_OR_NULL(speaker_amplifier_gpio)) {
+	priv = devm_kzalloc(&pdev->dev, sizeof(*priv), GFP_KERNEL);
+	if (!priv)
+		return -ENOMEM;
 
-		hmic_wr_control(SUNXI_HMIC_CTL, 0xf, HMIC_M, 0x0);						/*0xf should be get from hw_debug 28*/
-		hmic_wr_control(SUNXI_HMIC_CTL, 0xf, HMIC_N, 0x0);						/*0xf should be get from hw_debug 24 0xf*/
-		/* hmic_wr_control(SUNXI_HMIC_CTL, 0x1, HMIC_DIRQ, 0x1); */	/*23*/
-		hmic_wr_control(SUNXI_HMIC_CTL, 0x1, HMIC_EARPHONE_OUT_IRQ_EN, 0x1); 	/*20*/
-		hmic_wr_control(SUNXI_HMIC_CTL, 0x1, HMIC_EARPHONE_IN_IRQ_EN, 0x1); 	/*19*/
-		hmic_wr_control(SUNXI_HMIC_CTL, 0x1, HMIC_KEY_UP_IRQ_EN, 0x1); 			/*18*/
-		hmic_wr_control(SUNXI_HMIC_CTL, 0x1, HMIC_KEY_DOWN_IRQ_EN, 0x1); 		/*17*/
-		hmic_wr_control(SUNXI_HMIC_CTL, 0x1, HMIC_DATA_IRQ_EN, 0x1); 			/*16*/
-		hmic_wr_control(SUNXI_HMIC_CTL, 0x3, HMIC_DS_SAMP, 0x0); 				/*14 */
-		hmic_wr_control(SUNXI_HMIC_CTL, 0x1f, HMIC_TH2_KEY, 0x0);				/*0xf should be get from hw_debug 8*/
-		hmic_wr_control(SUNXI_HMIC_CTL, 0x1f, HMIC_TH1_EARPHONE, 0x1);			/*0x1 should be get from hw_debug 0*/
-
+	priv->base = base;
+	priv->speaker_amplifier_gpio = devm_gpiod_get_optional(&pdev->dev,
+							       "speaker-amplifier",
+							       GPIOD_OUT_HIGH);
+	if (!IS_ERR_OR_NULL(priv->speaker_amplifier_gpio)) {
 		irq = platform_get_irq(pdev, 0);
 		if (irq < 0) {
 			dev_err(&pdev->dev, "Can't retrieve our interrupt\n");
 			return irq;
 		}
 
-		ret = devm_request_irq(&pdev->dev, irq, sunxi_codec_analog_irq, 0, "audio_hmic_irq", NULL);
+		/* Register the handler before enabling interrupt sources in HW,
+		 * so we cannot miss an interrupt fired between CTL setup and
+		 * devm_request_irq().
+		 */
+		ret = devm_request_irq(&pdev->dev, irq, sunxi_codec_analog_irq,
+				       0, "audio_hmic_irq", priv);
 		if (ret) {
-			dev_err(&pdev->dev, "can't register interrupt handler irq %d: %d\n",
+			dev_err(&pdev->dev,
+				"can't register interrupt handler irq %d: %d\n",
 				irq, ret);
 			return ret;
 		}
 
-		codec_init_events();
+		hmic_wr_control(base, SUNXI_HMIC_CTL, 0xf, HMIC_M, 0x0);
+		hmic_wr_control(base, SUNXI_HMIC_CTL, 0xf, HMIC_N, 0x0);
+		/* hmic_wr_control(base, SUNXI_HMIC_CTL, 0x1, HMIC_DIRQ, 0x1); */
+		hmic_wr_control(base, SUNXI_HMIC_CTL, 0x1, HMIC_EARPHONE_OUT_IRQ_EN, 0x1);
+		hmic_wr_control(base, SUNXI_HMIC_CTL, 0x1, HMIC_EARPHONE_IN_IRQ_EN, 0x1);
+		hmic_wr_control(base, SUNXI_HMIC_CTL, 0x1, HMIC_KEY_UP_IRQ_EN, 0x1);
+		hmic_wr_control(base, SUNXI_HMIC_CTL, 0x1, HMIC_KEY_DOWN_IRQ_EN, 0x1);
+		hmic_wr_control(base, SUNXI_HMIC_CTL, 0x1, HMIC_DATA_IRQ_EN, 0x1);
+		hmic_wr_control(base, SUNXI_HMIC_CTL, 0x3, HMIC_DS_SAMP, 0x0);
+		hmic_wr_control(base, SUNXI_HMIC_CTL, 0x1f, HMIC_TH2_KEY, 0x0);
+		hmic_wr_control(base, SUNXI_HMIC_CTL, 0x1f, HMIC_TH1_EARPHONE, 0x1);
+
+		codec_init_events(base);
 	}
 
 	regmap = sun8i_adda_pr_regmap_init(&pdev->dev, base);
