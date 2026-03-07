@@ -1,0 +1,48 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/display/panel/clockwork,cpi3-lcd.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Clockwork ClockworkPi CPI3 2.7" LCD panel
+
+description: |
+  2.7" 320x240 LCD panel assembly used in the Clockwork Tech ClockworkPi
+  CPI3 handheld game console.  The panel is connected to the SoC's parallel
+  RGB output via an on-board bridge.  Initialization of the LCD controller
+  is handled separately by the kd027-lcd driver.
+
+maintainers:
+  - Clockwork Tech LLC <linux@clockworkpi.com>
+
+allOf:
+  - $ref: panel-common.yaml#
+
+properties:
+  compatible:
+    const: clockwork,cpi3-lcd
+
+  power-supply:
+    description: Regulator supplying the panel VCC rail.
+
+  port: true
+
+required:
+  - compatible
+  - power-supply
+  - port
+
+unevaluatedProperties: false
+
+examples:
+  - |
+    panel {
+        compatible = "clockwork,cpi3-lcd";
+        power-supply = <&reg_dc1sw>;
+
+        port {
+            rgb_input: endpoint {
+                remote-endpoint = <&tcon0_out_rgb>;
+            };
+        };
+    };

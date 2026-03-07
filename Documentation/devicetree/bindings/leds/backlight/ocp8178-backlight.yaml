@@ -1,0 +1,44 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/leds/backlight/ocp8178-backlight.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: OCP8178 GPIO-controlled LED backlight
+
+description: |
+  The OCP8178 is a boost-converter LED backlight IC whose brightness is
+  controlled by counting pulses on a single GPIO line (the "expresswire"
+  protocol). The driver bit-bangs this protocol from the GPIO.
+
+maintainers:
+  - Clockwork Tech LLC <linux@clockworkpi.com>
+
+allOf:
+  - $ref: common.yaml#
+
+properties:
+  compatible:
+    const: ocp8178-backlight
+
+  backlight-control-gpios:
+    description: GPIO connected to the OCP8178 backlight control pin.
+    maxItems: 1
+
+  default-brightness: true
+  max-brightness: true
+
+required:
+  - compatible
+  - backlight-control-gpios
+
+additionalProperties: false
+
+examples:
+  - |
+    #include <dt-bindings/gpio/gpio.h>
+    backlight {
+        compatible = "ocp8178-backlight";
+        backlight-control-gpios = <&pio 7 1 GPIO_ACTIVE_HIGH>;
+        default-brightness = <5>;
+    };

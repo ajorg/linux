@@ -49,18 +49,9 @@
 	panel {
 		compatible = "clockwork,cpi3-hdmi";
 
-		ports {
-			#address-cells = <1>;
-			#size-cells = <0>;
-			port@0 {
-				#address-cells = <1>;
-				#size-cells = <0>;
-				reg = <0>;
-
-				rgb_input: endpoint@0 {
-					reg = <0>;
-					remote-endpoint = <&tcon0_out_rgb>;
-				};
+		port {
+			rgb_input: endpoint {
+				remote-endpoint = <&tcon0_out_rgb>;
 			};
 		};
 	};

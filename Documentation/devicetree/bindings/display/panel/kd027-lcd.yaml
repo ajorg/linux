@@ -1,0 +1,86 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/display/panel/kd027-lcd.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: KD027 GPIO bit-banged SPI LCD controller
+
+description: |
+  The KD027 is an LCD controller driven via a bit-banged 4-wire SPI
+  interface.  Initialization, suspend and resume sequences are supplied
+  as byte arrays in the device tree.
+
+maintainers:
+  - Clockwork Tech LLC <linux@clockworkpi.com>
+
+properties:
+  compatible:
+    const: kd027-lcd
+
+  lcd-rst-gpios:
+    description: GPIO connected to the LCD reset line.
+    maxItems: 1
+
+  lcd-cs-gpios:
+    description: GPIO connected to the SPI chip-select line.
+    maxItems: 1
+
+  lcd-sck-gpios:
+    description: GPIO connected to the SPI clock line.
+    maxItems: 1
+
+  lcd-sda-gpios:
+    description: GPIO connected to the SPI data line.
+    maxItems: 1
+
+  init-seq:
+    description: |
+      Initialization command/data byte sequence.  Each pair of bytes is
+      sent as a (command, data) tuple over the bit-banged SPI interface.
+      Must contain an even number of bytes.
+    $ref: /schemas/types.yaml#/definitions/uint8-array
+    minItems: 2
+    maxItems: 100
+
+  suspend-seq:
+    description: |
+      Command/data byte sequence to send on system suspend.
+      Must contain an even number of bytes.  Optional; if absent the
+      LCD is not touched during suspend.
+    $ref: /schemas/types.yaml#/definitions/uint8-array
+    minItems: 2
+    maxItems: 20
+
+  resume-seq:
+    description: |
+      Command/data byte sequence to send on system resume.
+      Must contain an even number of bytes.  Optional; if absent the
+      LCD is not touched during resume.
+    $ref: /schemas/types.yaml#/definitions/uint8-array
+    minItems: 2
+    maxItems: 20
+
+required:
+  - compatible
+  - lcd-rst-gpios
+  - lcd-cs-gpios
+  - lcd-sck-gpios
+  - lcd-sda-gpios
+  - init-seq
+
+additionalProperties: false
+
+examples:
+  - |
+    #include <dt-bindings/gpio/gpio.h>
+    lcd {
+        compatible = "kd027-lcd";
+        lcd-rst-gpios = <&pio 1 2 GPIO_ACTIVE_HIGH>;
+        lcd-cs-gpios  = <&pio 2 3 GPIO_ACTIVE_HIGH>;
+        lcd-sck-gpios = <&pio 2 2 GPIO_ACTIVE_HIGH>;
+        lcd-sda-gpios = <&pio 2 0 GPIO_ACTIVE_HIGH>;
+        init-seq    = /bits/ 8 <0x2b 0x01 0x00 0x07 0x0c 0x27 0x16 0x04>;
+        suspend-seq = /bits/ 8 <0x2b 0x00>;
+        resume-seq  = /bits/ 8 <0x2b 0x01>;
+    };

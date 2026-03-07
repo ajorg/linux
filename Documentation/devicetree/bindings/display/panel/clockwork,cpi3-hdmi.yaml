@@ -1,0 +1,43 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/display/panel/clockwork,cpi3-hdmi.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Clockwork ClockworkPi CPI3 HDMI output module panel node
+
+description: |
+  Placeholder panel node used when the ClockworkPi CPI3 HDMI expansion
+  module is fitted.  The module pulls GPIO PL11 low on boot, causing
+  U-Boot to select this DTB.  The RGB output of the SoC is routed to
+  the HDMI module instead of the built-in LCD.
+
+maintainers:
+  - Clockwork Tech LLC <linux@clockworkpi.com>
+
+allOf:
+  - $ref: panel-common.yaml#
+
+properties:
+  compatible:
+    const: clockwork,cpi3-hdmi
+
+  port: true
+
+required:
+  - compatible
+  - port
+
+unevaluatedProperties: false
+
+examples:
+  - |
+    panel {
+        compatible = "clockwork,cpi3-hdmi";
+
+        port {
+            rgb_input: endpoint {
+                remote-endpoint = <&tcon0_out_rgb>;
+            };
+        };
+    };
