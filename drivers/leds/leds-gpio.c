@@ -356,9 +356,10 @@ static int leds_gpio_proc_write(struct file *file, const char __user *buf,
 	ret = kstrtoint(local_buffer, 10, &value);
 	if (ret)
 		return ret;
+	if (value < 0)
+		return -EINVAL;
 
-	gpio_led_set(&led->cdev, value);
-	led->cdev.brightness = value;
+	led_set_brightness(&led->cdev, value);
 
 	return size;
 }

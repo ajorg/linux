@@ -60,11 +60,6 @@ static void kd027_init(struct kd027_lcd *lcd)
 }
 
 #ifdef CONFIG_PROC_FS
-static ssize_t kd027_proc_read(struct file *file, char __user *buf, size_t size, loff_t *loff)
-{
-	return 0;
-}
-
 static ssize_t kd027_proc_write(struct file *file, const char __user *buf, size_t size, loff_t *loff)
 {
 	struct kd027_lcd *lcd = PDE_DATA(file_inode(file));
@@ -96,14 +91,13 @@ static ssize_t kd027_proc_write(struct file *file, const char __user *buf, size_
 
 static const struct proc_ops kd027_proc_fops = {
 	.proc_open	= simple_open,
-	.proc_read	= kd027_proc_read,
 	.proc_write	= kd027_proc_write,
 	.proc_lseek	= noop_llseek,
 };
 
 static void kd027_proc_init(struct kd027_lcd *lcd)
 {
-	lcd->proc = proc_create_data("driver/lcd", 0644, NULL,
+	lcd->proc = proc_create_data("driver/lcd", 0200, NULL,
 				     &kd027_proc_fops, lcd);
 }
 #else
