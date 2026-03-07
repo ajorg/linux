@@ -35,6 +35,9 @@
 #include "core.h"
 #include "common.h"
 #include "bcdc.h"
+#ifdef CONFIG_PROC_FS
+#include <linux/proc_fs.h>
+#endif
 
 #define DCMD_RESP_TIMEOUT	msecs_to_jiffies(2500)
 #define CTL_DONE_TIMEOUT	msecs_to_jiffies(2500)
@@ -526,6 +529,9 @@ struct brcmf_sdio {
 	bool txglom;		/* host tx glomming enable flag */
 	u16 head_align;		/* buffer pointer alignment */
 	u16 sgentry_align;	/* scatter-gather buffer alignment */
+#ifdef CONFIG_PROC_FS
+	struct proc_dir_entry *proc_entry;
+#endif
 };
 
 /* clkstate */
@@ -4432,15 +4438,17 @@ brcmf_sdio_prepare_fw_request(struct brcmf_sdio *bus)
 	return fwreq;
 }
 
-static char brcmf_fw_name[BRCMF_FW_NAME_LEN];
+static char brcmf_fw_name[BRCMF_FW_NAME_LEN] __attribute__((unused));
 
 #ifdef CONFIG_PROC_FS
-#include <linux/proc_fs.h>
 
 static ssize_t brcmf_sdio_proc_read(struct file *file, char __user *buf, size_t size, loff_t *loff)
 {
-	int len = strlen(brcmf_fw_name);
-	return simple_read_from_buffer(buf, size, loff, brcmf_fw_name, len);
+	struct brcmf_sdio *bus = PDE_DATA(file_inode(file));
+	const char *fw_name = bus->sdiodev->fw_name;
+	int len = strlen(fw_name);
+
+	return simple_read_from_buffer(buf, size, loff, fw_name, len);
 }
 
 static ssize_t brcmf_sdio_proc_write(struct file *file, const char __user *buf, size_t size, loff_t *loff)
@@ -4455,17 +4463,13 @@ static const struct proc_ops brcmf_sdio_proc_fops = {
 	.proc_lseek		= noop_llseek,
 };
 
-static int brcmf_sdio_proc_init(void)
+static void brcmf_sdio_proc_init(struct brcmf_sdio *bus)
 {
-	struct proc_dir_entry *r;
-
-	r = proc_create("driver/brcmf_fw", 0666, NULL, &brcmf_sdio_proc_fops);
-	if (!r)
-		return -ENOMEM;
-	return 0;
+	bus->proc_entry = proc_create_data("driver/brcmf_fw", 0666, NULL,
+					   &brcmf_sdio_proc_fops, bus);
 }
 #else
-static inline int brcmf_sdio_proc_init(void) { return 0; }
+static inline void brcmf_sdio_proc_init(struct brcmf_sdio *bus) {}
 #endif /* CONFIG_PROC_FS */
 
 struct brcmf_sdio *brcmf_sdio_probe(struct brcmf_sdio_dev *sdiodev)
@@ -4570,8 +4574,7 @@ struct brcmf_sdio *brcmf_sdio_probe(struct brcmf_sdio_dev *sdiodev)
 		goto fail;
 	}
 
-	snprintf(brcmf_fw_name, sizeof(brcmf_fw_name), "%s\n", sdiodev->fw_name);
-	brcmf_sdio_proc_init();
+	brcmf_sdio_proc_init(bus);
 
 	return bus;
 
@@ -4586,6 +4589,10 @@ void brcmf_sdio_remove(struct brcmf_sdio *bus)
 	brcmf_dbg(TRACE, "Enter\n");
 
 	if (bus) {
+#ifdef CONFIG_PROC_FS
+		proc_remove(bus->proc_entry);
+		bus->proc_entry = NULL;
+#endif
 		/* Stop watchdog task */
 		if (bus->watchdog_tsk) {
 			send_sig(SIGTERM, bus->watchdog_tsk, 1);

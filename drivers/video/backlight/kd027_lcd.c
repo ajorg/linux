@@ -23,6 +23,7 @@ struct kd027_lcd {
 	int init_seq_len;
 	int suspend_seq_len;
 	int resume_seq_len;
+	struct proc_dir_entry *proc;
 };
 
 struct kd027_lcd * lcd_data;
@@ -59,8 +60,6 @@ static void kd027_init(void)
 }
 
 #ifdef CONFIG_PROC_FS
-static char global_buffer[64]; 
-
 static ssize_t kd027_proc_read(struct file *file, char __user *buf, size_t size, loff_t *loff)
 {
 	return 0;
@@ -68,23 +67,28 @@ static ssize_t kd027_proc_read(struct file *file, char __user *buf, size_t size,
 
 static ssize_t kd027_proc_write(struct file *file, const char __user *buf, size_t size, loff_t *loff)
 {
+	struct kd027_lcd *lcd = PDE_DATA(file_inode(file));
+	char local_buffer[64];
 	long cmd, data;
 	char *tmp;
 
-	if (size >= sizeof(global_buffer))
-		size = sizeof(global_buffer) - 1;
+	if (size >= sizeof(local_buffer))
+		size = sizeof(local_buffer) - 1;
 
-	if (copy_from_user(global_buffer, buf, size))
+	if (copy_from_user(local_buffer, buf, size))
 		return -EFAULT;
 
-	global_buffer[size] = '\0';
-	if (kstrtol(global_buffer, 16, &cmd))
+	local_buffer[size] = '\0';
+	if (kstrtol(local_buffer, 16, &cmd))
 		return -EINVAL;
-	tmp = strchr(global_buffer, ' ');
+	tmp = strchr(local_buffer, ' ');
 	if (tmp) {
 		if (kstrtol(tmp + 1, 16, &data))
 			return -EINVAL;
-		kd027_write_cmd_data(cmd, data);
+		gpiod_set_value(lcd->cs_pin, 0);
+		kd027_write_lcd(cmd);
+		kd027_write_lcd(data);
+		gpiod_set_value(lcd->cs_pin, 1);
 	}
 
 	return size;
@@ -97,17 +101,13 @@ static const struct proc_ops kd027_proc_fops = {
 	.proc_lseek	= noop_llseek,
 };
 
-static int kd027_proc_init(void)
+static void kd027_proc_init(struct kd027_lcd *lcd)
 {
-	struct proc_dir_entry *r;
-
-	r = proc_create("driver/lcd", 0644, NULL, &kd027_proc_fops);
-	if (!r)
-		return -ENOMEM;
-	return 0;
+	lcd->proc = proc_create_data("driver/lcd", 0644, NULL,
+				     &kd027_proc_fops, lcd);
 }
 #else
-static inline int kd027_proc_init(void) { return 0; }
+static inline void kd027_proc_init(struct kd027_lcd *lcd) {}
 #endif /* CONFIG_PROC_FS */
 
 static int kd027_probe(struct platform_device *pdev)
@@ -175,8 +175,17 @@ static int kd027_probe(struct platform_device *pdev)
 	}
 
 	kd027_init();
-	kd027_proc_init();
+	kd027_proc_init(lcd_data);
+	platform_set_drvdata(pdev, lcd_data);
 
+	return 0;
+}
+
+static int kd027_remove(struct platform_device *pdev)
+{
+	struct kd027_lcd *lcd = platform_get_drvdata(pdev);
+
+	proc_remove(lcd->proc);
 	return 0;
 }
 
@@ -209,6 +218,7 @@ MODULE_DEVICE_TABLE(of, kd027_of_match);
 
 static struct platform_driver kd027_device_driver = {
 	.probe		= kd027_probe,
+	.remove		= kd027_remove,
 	.suspend 		= kd027_suspend,
 	.resume 		= kd027_resume,
 	.driver		= {

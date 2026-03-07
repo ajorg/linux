@@ -15,7 +15,9 @@
 #include <linux/of.h>
 #include <linux/platform_device.h>
 #include <linux/property.h>
+#include <linux/proc_fs.h>
 #include <linux/slab.h>
+#include <linux/uaccess.h>
 #include "leds.h"
 
 struct gpio_led_data {
@@ -24,9 +26,16 @@ struct gpio_led_data {
 	u8 can_sleep;
 	u8 blinking;
 	gpio_blink_set_t platform_gpio_blink_set;
+	struct proc_dir_entry *proc;
 };
 
-static int leds_gpio_proc_init(const char *name);
+#ifdef CONFIG_LEDS_GPIO_PROC
+static int leds_gpio_proc_init(struct gpio_led_data *led, const char *name);
+static int gpio_led_remove(struct platform_device *pdev);
+#else
+static inline int leds_gpio_proc_init(struct gpio_led_data *led,
+				      const char *name) { return 0; }
+#endif
 
 static inline struct gpio_led_data *
 			cdev_to_gpio_led_data(struct led_classdev *led_cdev)
@@ -122,7 +131,7 @@ static int create_gpio_led(const struct gpio_led *template,
 	}
 
 	if (ret == 0)
-		leds_gpio_proc_init(led_dat->cdev.dev->kobj.name);
+		leds_gpio_proc_init(led_dat, led_dat->cdev.dev->kobj.name);
 
 	return ret;
 }
@@ -131,8 +140,6 @@ struct gpio_leds_priv {
 	int num_leds;
 	struct gpio_led_data leds[];
 };
-
-static struct gpio_leds_priv *leds_priv;
 
 static struct gpio_leds_priv *gpio_leds_create(struct platform_device *pdev)
 {
@@ -188,7 +195,6 @@ static struct gpio_leds_priv *gpio_leds_create(struct platform_device *pdev)
 		priv->num_leds++;
 	}
 
-	leds_priv = priv;
 	return priv;
 }
 
@@ -307,6 +313,9 @@ static void gpio_led_shutdown(struct platform_device *pdev)
 static struct platform_driver gpio_led_driver = {
 	.probe		= gpio_led_probe,
 	.shutdown	= gpio_led_shutdown,
+#ifdef CONFIG_LEDS_GPIO_PROC
+	.remove		= gpio_led_remove,
+#endif
 	.driver		= {
 		.name	= "leds-gpio",
 		.of_match_table = of_gpio_leds_match,
@@ -317,29 +326,24 @@ module_platform_driver(gpio_led_driver);
 
 #ifdef CONFIG_LEDS_GPIO_PROC
 
-#include <linux/proc_fs.h>
-#include <linux/uaccess.h>
-
-static int leds_gpio_proc_read(struct file *file, char __user *buf, size_t size, loff_t *loff)
+static int leds_gpio_proc_read(struct file *file, char __user *buf,
+			       size_t size, loff_t *loff)
 {
+	struct gpio_led_data *led = PDE_DATA(file_inode(file));
 	char local_buffer[32];
-	int value, len, i;
+	int value, len;
 
-	for (i = 0; i < leds_priv->num_leds; i++) {
-		if (strcmp(dev_name(leds_priv->leds[i].cdev.dev), file->f_path.dentry->d_iname) == 0) {
-			value = leds_priv->leds[i].cdev.brightness;
-			len = snprintf(local_buffer, sizeof(local_buffer), "%d\n", value);
-			return simple_read_from_buffer(buf, size, loff, local_buffer, len);
-		}
-	}
-
-	return 0;
+	value = led->cdev.brightness;
+	len = snprintf(local_buffer, sizeof(local_buffer), "%d\n", value);
+	return simple_read_from_buffer(buf, size, loff, local_buffer, len);
 }
 
-static int leds_gpio_proc_write(struct file *file, const char __user *buf, size_t size, loff_t *loff)
+static int leds_gpio_proc_write(struct file *file, const char __user *buf,
+				size_t size, loff_t *loff)
 {
+	struct gpio_led_data *led = PDE_DATA(file_inode(file));
 	char local_buffer[32];
-	int value, ret, i;
+	int value, ret;
 
 	if (size >= sizeof(local_buffer))
 		size = sizeof(local_buffer) - 1;
@@ -349,16 +353,12 @@ static int leds_gpio_proc_write(struct file *file, const char __user *buf, size_
 
 	local_buffer[size] = '\0';
 
-	for (i = 0; i < leds_priv->num_leds; i++) {
-		if (strcmp(dev_name(leds_priv->leds[i].cdev.dev), file->f_path.dentry->d_iname) == 0) {
-			ret = kstrtoint(local_buffer, 10, &value);
-			if (ret)
-				return ret;
-			gpio_led_set(&leds_priv->leds[i].cdev, value);
-			leds_priv->leds[i].cdev.brightness = value;
-			break;
-		}
-	}
+	ret = kstrtoint(local_buffer, 10, &value);
+	if (ret)
+		return ret;
+
+	gpio_led_set(&led->cdev, value);
+	led->cdev.brightness = value;
 
 	return size;
 }
@@ -370,19 +370,28 @@ static const struct proc_ops leds_gpio_proc_fops = {
 	.proc_lseek	= noop_llseek,
 };
 
-static int leds_gpio_proc_init(const char *name)
+static int leds_gpio_proc_init(struct gpio_led_data *led, const char *name)
 {
-	struct proc_dir_entry *r;
 	char buf[50];
 
 	snprintf(buf, sizeof(buf), "driver/%s", name);
-	r = proc_create(buf, 0644, NULL, &leds_gpio_proc_fops);
-	if (!r)
+	led->proc = proc_create_data(buf, 0644, NULL, &leds_gpio_proc_fops, led);
+	if (!led->proc)
 		return -ENOMEM;
 	return 0;
 }
-#else
-static inline int leds_gpio_proc_init(const char *name) { return 0; }
+
+static int gpio_led_remove(struct platform_device *pdev)
+{
+	struct gpio_leds_priv *priv = platform_get_drvdata(pdev);
+	int i;
+
+	for (i = 0; i < priv->num_leds; i++)
+		proc_remove(priv->leds[i].proc);
+
+	return 0;
+}
+
 #endif /* CONFIG_LEDS_GPIO_PROC */
 
 MODULE_AUTHOR("Raphael Assenat <raph@8d.com>, Trent Piepho <tpiepho@freescale.com>");

@@ -22,6 +22,7 @@ struct ocp8178_backlight {
 	struct gpio_desc *gpiod;
 	int def_value;
 	int current_value;
+	struct proc_dir_entry *proc;
 };
 
 #define DETECT_DELAY 200
@@ -183,40 +184,41 @@ static int ocp8178_probe_dt(struct platform_device *pdev,
 	return ret;
 }
 
-static struct backlight_device *backlight;
+static struct backlight_device *backlight __attribute__((unused));
 
 #ifdef CONFIG_PROC_FS
-static char global_buffer[64];
 
 static int ocp8178_proc_read(struct file *file, char __user *buf, size_t size, loff_t *loff)
 {
+	struct backlight_device *bl = PDE_DATA(file_inode(file));
+	char local_buffer[32];
 	int value, len;
-	struct backlight_device *bl = backlight;
 
 	value = ocp8178_get_brightness(bl);
-	len = snprintf(global_buffer, sizeof(global_buffer), "%d\n", value);
-	return simple_read_from_buffer(buf, size, loff, global_buffer, len);
+	len = snprintf(local_buffer, sizeof(local_buffer), "%d\n", value);
+	return simple_read_from_buffer(buf, size, loff, local_buffer, len);
 }
 
 static int ocp8178_proc_write(struct file *file, const char __user *buf, size_t size, loff_t *loff)
 {
+	struct backlight_device *bl = PDE_DATA(file_inode(file));
+	char local_buffer[32];
 	int data;
-	struct backlight_device *bl = backlight;
 
-	if (size >= sizeof(global_buffer))
-		size = sizeof(global_buffer) - 1;
+	if (size >= sizeof(local_buffer))
+		size = sizeof(local_buffer) - 1;
 
-	if (copy_from_user(global_buffer, buf, size))
+	if (copy_from_user(local_buffer, buf, size))
 		return -EFAULT;
 
-	global_buffer[size] = '\0';
+	local_buffer[size] = '\0';
 
-	if (global_buffer[0] == '+') {
+	if (local_buffer[0] == '+') {
 		bl->props.brightness = (bl->props.brightness + 1) % (MAX_BRIGHTNESS_VALUE + 1);
-	} else if (global_buffer[0] == '-') {
+	} else if (local_buffer[0] == '-') {
 		bl->props.brightness = (bl->props.brightness + MAX_BRIGHTNESS_VALUE) % (MAX_BRIGHTNESS_VALUE + 1);
 	} else {
-		if (kstrtoint(global_buffer, 10, &data))
+		if (kstrtoint(local_buffer, 10, &data))
 			return -EINVAL;
 		bl->props.brightness = clamp(data, 0, MAX_BRIGHTNESS_VALUE);
 	}
@@ -232,17 +234,15 @@ static const struct proc_ops ocp8178_proc_fops = {
 	.proc_lseek	= noop_llseek,
 };
 
-static int ocp8178_proc_init(void)
+static void ocp8178_proc_init(struct ocp8178_backlight *gbl,
+			      struct backlight_device *bl)
 {
-	struct proc_dir_entry *r;
-
-	r = proc_create("driver/backlight", 0644, NULL, &ocp8178_proc_fops);
-	if (!r)
-		return -ENOMEM;
-	return 0;
+	gbl->proc = proc_create_data("driver/backlight", 0644, NULL,
+				     &ocp8178_proc_fops, bl);
 }
 #else
-static inline int ocp8178_proc_init(void) { return 0; }
+static inline void ocp8178_proc_init(struct ocp8178_backlight *gbl,
+				     struct backlight_device *bl) {}
 #endif /* CONFIG_PROC_FS */
 
 static int ocp8178_probe(struct platform_device *pdev)
@@ -289,9 +289,17 @@ static int ocp8178_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, bl);
 
-	backlight = bl;
-	ocp8178_proc_init();
+	ocp8178_proc_init(gbl, bl);
 
+	return 0;
+}
+
+static int ocp8178_remove(struct platform_device *pdev)
+{
+	struct backlight_device *bl = platform_get_drvdata(pdev);
+	struct ocp8178_backlight *gbl = bl_get_data(bl);
+
+	proc_remove(gbl->proc);
 	return 0;
 }
 
@@ -318,6 +326,7 @@ static struct platform_driver ocp8178_driver = {
 		.of_match_table = of_match_ptr(ocp8178_of_match),
 	},
 	.probe		= ocp8178_probe,
+	.remove		= ocp8178_remove,
 	.suspend		= ocp8178_suspend,
 	.resume		= ocp8178_resume,
 };
