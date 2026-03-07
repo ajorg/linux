@@ -4451,15 +4451,9 @@ static ssize_t brcmf_sdio_proc_read(struct file *file, char __user *buf, size_t 
 	return simple_read_from_buffer(buf, size, loff, fw_name, len);
 }
 
-static ssize_t brcmf_sdio_proc_write(struct file *file, const char __user *buf, size_t size, loff_t *loff)
-{
-	return size;
-}
-
 static const struct proc_ops brcmf_sdio_proc_fops = {
 	.proc_open		= simple_open,
 	.proc_read		= brcmf_sdio_proc_read,
-	.proc_write		= brcmf_sdio_proc_write,
 	.proc_lseek		= noop_llseek,
 };
 
