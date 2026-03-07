@@ -156,6 +156,12 @@ properties:
           - const: chuwi,v7-cw0825
           - const: allwinner,sun4i-a10
 
+      - description: Clockwork ClockworkPi CPI3 handheld game console
+        items:
+          - const: clockwork,clockworkpi-cpi3
+          - const: allwinner,sun8i-r16
+          - const: allwinner,sun8i-a33
+
       - description: Colorfly E708 Q1 Tablet
         items:
           - const: colorfly,e708-q1

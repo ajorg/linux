@@ -84,7 +84,7 @@
 };
 
 &pio {
-	hdmi_i2s_pins: hdmi_i2s_pins@0 {
+	hdmi_i2s_pins: hdmi-i2s-pins {
 		pins = "PB4", "PB5", "PB6";
 		function = "aif2";
 	};

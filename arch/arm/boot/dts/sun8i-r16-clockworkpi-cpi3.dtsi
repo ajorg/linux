@@ -48,7 +48,8 @@
 
 / {
 	model = "Clockwork CPI3";
-	compatible = "clockwork,clockworkpi-cpi3", "allwinner,sun8i-a33";
+	compatible = "clockwork,clockworkpi-cpi3", "allwinner,sun8i-r16",
+		     "allwinner,sun8i-a33";
 
 	aliases {
 		serial0 = &uart0;
@@ -166,36 +167,36 @@
 };
 
 &pio {
-	mmc0_cd_pin: mmc0_cd_pin@0 {
+	mmc0_cd_pin: mmc0-cd-pin {
 		pins = "PB3";
 		function = "gpio_in";
 		bias-pull-up;
 	};
 
-	led_pins: led_pins@0 {
+	led_pins: led-pins {
 		pins = "PB7";
 		function = "gpio_out";
 	};
 };
 
 &r_pio {
-	usb1_vbus_pin: usb1_vbus_pin@0 {
+	usb1_vbus_pin: usb1-vbus-pin {
 		pins = "PL2";
 		function = "gpio_out";
 	};
 
-	usb0_id_det: usb0_id_detect_pin@0 {
+	usb0_id_det: usb0-id-detect-pin {
 		pins = "PL4";
 		function = "gpio_in";
 		bias-pull-up;
 	};
 
-	wifi_reset_pin: wifi_reset_pin@0 {
+	wifi_reset_pin: wifi-reset-pin {
 		pins = "PL6";
 		function = "gpio_out";
 	};
 
-	bt_control_pin: bt_control_pin@0 {
+	bt_control_pin: bt-control-pin {
 		pins = "PL8", "PL10";
 		function = "gpio_out";
 	};
