@@ -24,8 +24,15 @@
 #define V_ST	vse8.v
 #define V_LD	vle8.v
 #else
+#ifdef CONFIG_SOC_THEAD
+#define V_ST	th.vsb.v
+#define V_LD	th.vlb.v
+#define vsetvli th.vsetvli
+#define vsetvl  th.vsetvl
+#else
 #define V_ST	vsb.v
 #define V_LD	vlb.v
+#endif
 #endif
 
 ENTRY(__vstate_save)
