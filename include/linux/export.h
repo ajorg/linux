@@ -39,6 +39,20 @@ extern struct module __this_module;
 #define __CRC_SYMBOL(sym, sec)
 #endif
 
+/*
+ * NANOKVM 5.10 PORT: reverted to the pre-5.4 (4.19-compatible) two-field
+ * kernel_symbol layout, dropping symbol-namespace support, so this fork's
+ * module loader parses __ksymtab sections with the same 8-byte stride the
+ * vendor's closed-source AX630C .ko blobs were compiled with. See
+ * NANOKVM_5.10_PORT_NOTES.md section 5e for the full derivation: the 12-byte
+ * (namespace-carrying) layout silently misparses every blob's export table
+ * (wrong entry count, wrong name/value offsets) rather than failing to load.
+ * Checked: stock 5.10.253's only real EXPORT_SYMBOL_NS/MODULE_IMPORT_NS users
+ * are NVMe passthrough, the MCB bus subsystem, a couple of staging IIO
+ * drivers, and firmware_loader's internal fallback-table boundary (not the
+ * public request_firmware() surface) -- none in this port's scope, so
+ * dropping namespace enforcement here is safe for this fork.
+ */
 #ifdef CONFIG_HAVE_ARCH_PREL32_RELOCATIONS
 #include <linux/compiler.h>
 /*
@@ -54,25 +68,22 @@ extern struct module __this_module;
 	    "__ksymtab_" #sym ":				\n"	\
 	    "	.long	" #sym "- .				\n"	\
 	    "	.long	__kstrtab_" #sym "- .			\n"	\
-	    "	.long	__kstrtabns_" #sym "- .			\n"	\
 	    "	.previous					\n")
 
 struct kernel_symbol {
 	int value_offset;
 	int name_offset;
-	int namespace_offset;
 };
 #else
 #define __KSYMTAB_ENTRY(sym, sec)					\
 	static const struct kernel_symbol __ksymtab_##sym		\
 	__attribute__((section("___ksymtab" sec "+" #sym), used))	\
 	__aligned(sizeof(void *))					\
-	= { (unsigned long)&sym, __kstrtab_##sym, __kstrtabns_##sym }
+	= { (unsigned long)&sym, __kstrtab_##sym }
 
 struct kernel_symbol {
 	unsigned long value;
 	const char *name;
-	const char *namespace;
 };
 #endif
 
@@ -97,13 +108,10 @@ struct kernel_symbol {
 #define ___EXPORT_SYMBOL(sym, sec, ns)						\
 	extern typeof(sym) sym;							\
 	extern const char __kstrtab_##sym[];					\
-	extern const char __kstrtabns_##sym[];					\
 	__CRC_SYMBOL(sym, sec);							\
 	asm("	.section \"__ksymtab_strings\",\"aMS\",%progbits,1	\n"	\
 	    "__kstrtab_" #sym ":					\n"	\
 	    "	.asciz 	\"" #sym "\"					\n"	\
-	    "__kstrtabns_" #sym ":					\n"	\
-	    "	.asciz 	\"" ns "\"					\n"	\
 	    "	.previous						\n");	\
 	__KSYMTAB_ENTRY(sym, sec)
 
