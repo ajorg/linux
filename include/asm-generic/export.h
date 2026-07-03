@@ -16,15 +16,13 @@
 #define KCRC_ALIGN 4
 #endif
 
-/* NANOKVM 5.10 PORT: two-field kernel_symbol (no namespace_offset), matching
- * the linux/export.h revert -- see the comment there. */
 .macro __put, val, name
 #ifdef CONFIG_HAVE_ARCH_PREL32_RELOCATIONS
-	.long	\val - ., \name - .
+	.long	\val - ., \name - ., 0
 #elif defined(CONFIG_64BIT)
-	.quad	\val, \name
+	.quad	\val, \name, 0
 #else
-	.long	\val, \name
+	.long	\val, \name, 0
 #endif
 .endm
 

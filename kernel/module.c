@@ -553,12 +553,13 @@ static const char *kernel_symbol_name(const struct kernel_symbol *sym)
 
 static const char *kernel_symbol_namespace(const struct kernel_symbol *sym)
 {
-	/* NANOKVM 5.10 PORT: kernel_symbol no longer carries a namespace field
-	 * (reverted to the 4.19-compatible two-field layout, see linux/export.h)
-	 * -- always report "no namespace" so verify_namespace_is_imported()'s
-	 * enforcement short-circuits unconditionally instead of dereferencing a
-	 * field that no longer exists. */
-	return NULL;
+#ifdef CONFIG_HAVE_ARCH_PREL32_RELOCATIONS
+	if (!sym->namespace_offset)
+		return NULL;
+	return offset_to_ptr(&sym->namespace_offset);
+#else
+	return sym->namespace;
+#endif
 }
 
 static int cmp_name(const void *name, const void *sym)
