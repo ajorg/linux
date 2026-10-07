@@ -4524,6 +4524,8 @@ static const struct panel_desc clockwork_cpi3_lcd = {
 	.num_modes = 1,
 	.bpc = 8,
 	.connector_type = DRM_MODE_CONNECTOR_DPI,
+	.bus_format = MEDIA_BUS_FMT_RGB888_1X24,
+	.bus_flags = DRM_BUS_FLAG_DE_HIGH | DRM_BUS_FLAG_PIXDATA_DRIVE_POSEDGE,
 };
 
 static const struct drm_display_mode clockwork_cpi3_hdmi_mode = {

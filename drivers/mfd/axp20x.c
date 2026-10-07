@@ -1000,10 +1000,14 @@ int axp20x_device_probe(struct axp20x_dev *axp20x)
 		return ret;
 	}
 
-	if (!pm_power_off) {
-		axp20x_pm_power_off = axp20x;
-		pm_power_off = axp20x_power_off;
-	}
+	/*
+	 * On Allwinner R16/A33, the PSCI firmware reports version 0xFFFFFFFF
+	 * and does not implement SYSTEM_OFF, but still sets pm_power_off via
+	 * psci_sys_poweroff(), causing shutdown to reboot instead of power off.
+	 * Always register the AXP20X handler so the PMIC handles power-off.
+	 */
+	axp20x_pm_power_off = axp20x;
+	pm_power_off = axp20x_power_off;
 
 	dev_info(axp20x->dev, "AXP20X driver loaded\n");
 

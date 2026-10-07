@@ -59,7 +59,7 @@
 
 	chosen {
 		stdout-path = "serial0:115200n8";
-		bootargs = "console=ttyS0,115200n8 vt.global_cursor_default=0";
+		bootargs = "console=ttyS0,115200n8 vt.global_cursor_default=0 earlyprintk";
 	};
 
 	psci {
@@ -95,19 +95,13 @@
 	};
 };
 
-&cpu0 {
-	enable-method = "psci";
-};
-
-&cpu1 {
-	enable-method = "psci";
-};
-
-&cpu2 {
-	enable-method = "psci";
-};
-
-&cpu3 {
+/*
+ * Override the cpus container-level enable-method from the base
+ * sun8i-a23-a33.dtsi ("allwinner,sun8i-a23") to "psci", matching the
+ * origin tree and ensuring PSCI SMP is used without relying on the
+ * setup.c PSCI override path.
+ */
+&{/cpus} {
 	enable-method = "psci";
 };
 
@@ -190,7 +184,12 @@
 };
 
 &r_pio {
-	vcc-pl-supply = <&reg_rtc_ldo>;
+	/*
+	 * The PL bank regulator (vcc-pl) comes from the AXP223's RTC LDO,
+	 * which is on the RSB bus — itself on PL0/PL1. Setting vcc-pl-supply
+	 * creates a circular probe dependency that deadlocks boot. Omit it;
+	 * the PL bank runs at a fixed 3.0 V from the RTC LDO regardless.
+	 */
 
 	usb1_vbus_pin: usb1-vbus-pin {
 		pins = "PL2";

@@ -786,13 +786,24 @@ static int sunxi_pmx_request(struct pinctrl_dev *pctldev, unsigned offset)
 	int ret;
 
 	if (reg) {
+		/* sentinel (ERR_PTR(-ENODEV)) or real regulator */
 		refcount_inc(&s_reg->refcount);
 		return 0;
 	}
 
 	snprintf(supply, sizeof(supply), "vcc-p%c", 'a' + bank);
-	reg = regulator_get(pctl->dev, supply);
+	reg = regulator_get_optional(pctl->dev, supply);
 	if (IS_ERR(reg)) {
+		if (PTR_ERR(reg) == -ENODEV) {
+			/*
+			 * No supply configured in DT. Use a sentinel so the
+			 * fast-path above fires on subsequent requests without
+			 * re-doing the lookup. Skip enable and bias config.
+			 */
+			s_reg->regulator = ERR_PTR(-ENODEV);
+			refcount_set(&s_reg->refcount, 1);
+			return 0;
+		}
 		dev_err(pctl->dev, "Couldn't get bank P%c regulator\n",
 			'A' + bank);
 		return PTR_ERR(reg);
@@ -813,7 +824,7 @@ static int sunxi_pmx_request(struct pinctrl_dev *pctldev, unsigned offset)
 	return 0;
 
 out:
-	regulator_put(s_reg->regulator);
+	regulator_put(reg);
 
 	return ret;
 }
@@ -829,9 +840,13 @@ static int sunxi_pmx_free(struct pinctrl_dev *pctldev, unsigned offset)
 	if (!refcount_dec_and_test(&s_reg->refcount))
 		return 0;
 
-	regulator_disable(s_reg->regulator);
-	regulator_put(s_reg->regulator);
-	s_reg->regulator = NULL;
+	if (s_reg->regulator) {
+		if (!IS_ERR(s_reg->regulator)) {
+			regulator_disable(s_reg->regulator);
+			regulator_put(s_reg->regulator);
+		}
+		s_reg->regulator = NULL;
+	}
 
 	return 0;
 }
